@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
@@ -13,6 +13,17 @@ function LoginForm() {
   const [form, setForm] = useState({ nama: '', password: '' })
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/admin-exists')
+      .then(r => r.json())
+      .then(data => {
+        if (data.exists === false) router.replace('/register-admin')
+      })
+      .catch(() => {
+        // Biarkan login tetap tampil kalau status setup tidak bisa dicek.
+      })
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

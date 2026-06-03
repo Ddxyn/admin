@@ -8,6 +8,13 @@ import { logActivity } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
+function authErrorMessage(err: unknown) {
+  if (err instanceof Error && err.message.includes('JWT_SECRET')) {
+    return 'Konfigurasi server belum lengkap: JWT_SECRET belum valid'
+  }
+  return 'Server error'
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { nama, password } = await req.json()
@@ -62,6 +69,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ user: sessionUser })
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    return NextResponse.json({ error: authErrorMessage(err) }, { status: 500 })
   }
 }

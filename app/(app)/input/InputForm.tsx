@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Truck, Sprout, Receipt, Calculator } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -17,7 +17,7 @@ const emptySupir = (): FormSupir => ({ nama_supir: '', tonase: '' })
 const emptyPemanen = (): FormPemanen => ({ nama_pemanen: '', jumlah_tandan: '' })
 const emptyPengeluaran = (): FormPengeluaran => ({ kategori: '', deskripsi: '', jumlah: '' })
 
-export default function InputForm({ kategoriList, editId, userRole }: Props) {
+export default function InputForm({ kategoriList, editId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [loadingEdit, setLoadingEdit] = useState(!!editId)
@@ -31,7 +31,7 @@ export default function InputForm({ kategoriList, editId, userRole }: Props) {
 
   const [supirHistory, setSupirHistory] = useState<string[]>([])
   const [pemanenHistory, setPemanenHistory] = useState<string[]>([])
-  const [kategoriOptions, setKategoriOptions] = useState<string[]>(kategoriList.map(k => k.nama))
+  const kategoriOptions = kategoriList.map(k => k.nama)
 
   // Load history nama
   useEffect(() => {

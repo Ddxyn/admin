@@ -4,11 +4,16 @@ import { NextRequest } from 'next/server'
 import { supabaseAdmin } from './supabase'
 import type { SessionUser, Role } from '@/types'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-change-in-production'
-)
 const COOKIE_NAME = 'day-session'
 const SESSION_DURATION = 60 * 60 * 24 * 7 // 7 hari (dalam detik)
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET wajib diisi minimal 32 karakter')
+  }
+  return new TextEncoder().encode(secret)
+}
 
 // ============================================================
 // JWT HELPERS
@@ -18,12 +23,12 @@ export async function signToken(payload: SessionUser): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION}s`)
-    .sign(JWT_SECRET)
+    .sign(getJwtSecret())
 }
 
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, getJwtSecret())
     return payload as unknown as SessionUser
   } catch {
     return null
@@ -35,7 +40,7 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
 // ============================================================
 export async function setSessionCookie(user: SessionUser): Promise<string> {
   const token = await signToken(user)
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -47,14 +52,14 @@ export async function setSessionCookie(user: SessionUser): Promise<string> {
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) return null
   return verifyToken(token)
 }
 
 export async function clearSession() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   cookieStore.delete(COOKIE_NAME)
 }
 

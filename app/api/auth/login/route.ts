@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import {
-  setSessionCookie, createDbSession, invalidateDbSession,
-  clearSession
+  setSessionCookie, createDbSession, invalidateDbSession
 } from '@/lib/auth'
 import { logActivity } from '@/lib/db'
 

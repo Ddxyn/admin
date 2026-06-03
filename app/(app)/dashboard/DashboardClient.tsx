@@ -3,11 +3,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell
+  Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, Scale, Leaf, Calendar,
-  Users, PlusCircle, BarChart3, ArrowRight
+  PlusCircle, ArrowRight
 } from 'lucide-react'
 import { formatRupiah, formatAngka, formatTanggal, getHari } from '@/lib/format'
 import type { SessionUser, Ringkasan, DataHarian } from '@/types'
@@ -45,7 +45,7 @@ export default function DashboardClient({
     Tonase: Number(d.total_tonase),
   }))
 
-  const formatTooltipValue = (v: number) => formatRupiah(v)
+  const formatTooltipValue = (value: unknown) => formatRupiah(Number(value ?? 0))
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">

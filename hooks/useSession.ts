@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import type { SessionUser } from '@/types'
 
 const REFRESH_INTERVAL = 10 * 60 * 1000 // refresh token setiap 10 menit
@@ -9,9 +8,8 @@ const ACTIVITY_DEBOUNCE = 60 * 1000     // min 1 menit antar refresh karena acti
 export function useSession() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
   const lastRefresh = useRef<number>(0)
-  const intervalRef = useRef<NodeJS.Timeout>()
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const checkSession = useCallback(async () => {
     try {

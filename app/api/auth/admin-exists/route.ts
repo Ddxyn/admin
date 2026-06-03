@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { adminExists } from '@/lib/auth'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET() {
   try {

@@ -1,85 +1,72 @@
 'use client'
-/**
- * SessionKeepAlive — komponen invisible yang menjaga session aktif
- * Mencegah logout otomatis saat hosting di Vercel/serverless
- *
- * Cara kerja:
- * 1. Ping /api/auth/refresh setiap 8 menit (sebelum JWT 10 menit expire)
- * 2. Ping saat tab aktif kembali (visibilitychange)
- * 3. Ping saat ada interaksi user (debounced 5 menit)
- * 4. Tidak logout paksa jika network error — coba lagi
- */
-import { useEffect, useRef } from 'react'
+
+import { useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
-const PING_INTERVAL  = 8 * 60 * 1000   // 8 menit
-const MIN_INTERACTION = 5 * 60 * 1000  // min 5 menit antar ping dari interaksi
+const PING_INTERVAL = 8 * 60 * 1000
+const MIN_INTERACTION = 5 * 60 * 1000
+const MAX_FAILS = 3
 
 export default function SessionKeepAlive() {
   const router = useRouter()
-  const lastPing = useRef<number>(Date.now())
-  const timerRef = useRef<NodeJS.Timeout>()
+  const lastPing = useRef<number>(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const failCount = useRef(0)
-  const MAX_FAILS = 3 // logout setelah 3 kali gagal berturut-turut
 
-  async function ping() {
+  const ping = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/refresh', {
         method: 'POST',
-        // Tandai sebagai background request agar tidak menghalangi UX
         headers: { 'X-Refresh-Type': 'keepalive' },
       })
 
       if (res.status === 401) {
         failCount.current++
         if (failCount.current >= MAX_FAILS) {
-          // Session benar-benar sudah tidak valid
           router.push('/login?reason=session_expired')
         }
         return
       }
 
-      // Berhasil — reset fail counter
       failCount.current = 0
       lastPing.current = Date.now()
     } catch {
-      // Network error — jangan logout, coba lagi nanti
-      // Ini penting supaya tidak logout saat HP masuk sleep / jaringan putus sebentar
+      // Keep the current session state when the network is briefly unavailable.
     }
-  }
+  }, [router])
 
-  // Interval ping rutin
   useEffect(() => {
+    lastPing.current = Date.now()
     timerRef.current = setInterval(ping, PING_INTERVAL)
-    return () => clearInterval(timerRef.current)
-  }, [])
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [ping])
 
-  // Ping saat tab aktif kembali
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === 'visible') {
-        const elapsed = Date.now() - lastPing.current
-        // Ping jika sudah lebih dari 5 menit tidak ada ping
-        if (elapsed > MIN_INTERACTION) {
-          ping()
-        }
+      if (document.visibilityState !== 'visible') return
+
+      const elapsed = Date.now() - lastPing.current
+      if (elapsed > MIN_INTERACTION) {
+        void ping()
       }
     }
+
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [])
+  }, [ping])
 
-  // Ping saat ada interaksi (debounced)
   useEffect(() => {
-    const EVENTS = ['mousedown', 'keydown', 'touchstart', 'scroll']
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll']
     function handleInteraction() {
       const elapsed = Date.now() - lastPing.current
-      if (elapsed > MIN_INTERACTION) ping()
+      if (elapsed > MIN_INTERACTION) void ping()
     }
-    EVENTS.forEach(e => window.addEventListener(e, handleInteraction, { passive: true }))
-    return () => EVENTS.forEach(e => window.removeEventListener(e, handleInteraction))
-  }, [])
 
-  // Komponen tidak render apapun — invisible
+    events.forEach(eventName => window.addEventListener(eventName, handleInteraction, { passive: true }))
+    return () => events.forEach(eventName => window.removeEventListener(eventName, handleInteraction))
+  }, [ping])
+
   return null
 }

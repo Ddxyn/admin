@@ -1,12 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getSession, canManageUsers, invalidateDbSession } from '@/lib/auth'
+import { getSession, canInput, canManageUsers } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { logActivity } from '@/lib/db'
+import { getNamaHistory, getUsers, logActivity } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(req.url)
+  if (searchParams.get('type') === 'history') {
+    if (!canInput(session.role)) {
+      return NextResponse.json({ error: 'Tidak memiliki akses' }, { status: 403 })
+    }
+    const data = await getNamaHistory()
+    return NextResponse.json(data)
+  }
+
+  if (!canManageUsers(session.role)) {
+    return NextResponse.json({ error: 'Hanya admin' }, { status: 403 })
+  }
+
+  try {
+    const data = await getUsers()
+    return NextResponse.json({ data })
+  } catch {
+    return NextResponse.json({ error: 'Gagal mengambil pengguna' }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!canManageUsers(session.role)) {
@@ -15,29 +40,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     const body = await req.json()
-    const update: Record<string, unknown> = {}
+    const nama = typeof body.nama === 'string' ? body.nama.trim() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
+    const keterangan = typeof body.keterangan === 'string' ? body.keterangan.trim() : null
 
-    if (body.nama) update.nama = body.nama.trim()
-    if (body.keterangan !== undefined) update.keterangan = body.keterangan
-    if (typeof body.aktif === 'boolean') {
-      update.aktif = body.aktif
-      // Jika nonaktif, hapus sesi
-      if (!body.aktif) await invalidateDbSession(params.id)
+    if (!nama || !password) {
+      return NextResponse.json({ error: 'Nama dan password wajib diisi' }, { status: 400 })
     }
-    if (body.password) {
-      if (body.password.length < 6) {
-        return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 })
-      }
-      update.password_hash = await bcrypt.hash(body.password, 12)
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 })
     }
 
-    update.updated_at = new Date().toISOString()
+    const password_hash = await bcrypt.hash(password, 12)
 
     const { data, error } = await supabaseAdmin
       .from('users')
-      .update(update)
-      .eq('id', params.id)
-      .select('id, nama, role, keterangan, aktif')
+      .insert({ nama, password_hash, role: 'petugas', keterangan })
+      .select('id, nama, role, keterangan, aktif, created_at')
       .single()
 
     if (error) throw error
@@ -45,42 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await logActivity({
       userId: session.id,
       userName: session.nama,
-      action: 'UPDATE_USER',
+      action: 'CREATE_USER',
       entity: 'users',
-      entityId: params.id,
-      detail: { changes: Object.keys(update) },
+      entityId: data.id,
+      detail: { role: 'petugas' },
     })
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data }, { status: 201 })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Gagal update'
+    const msg = err instanceof Error ? err.message : 'Gagal membuat petugas'
     return NextResponse.json({ error: msg }, { status: 500 })
-  }
-}
-
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canManageUsers(session.role)) {
-    return NextResponse.json({ error: 'Hanya admin' }, { status: 403 })
-  }
-  // Tidak bisa hapus diri sendiri
-  if (params.id === session.id) {
-    return NextResponse.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 })
-  }
-
-  try {
-    await invalidateDbSession(params.id)
-    await supabaseAdmin.from('users').delete().eq('id', params.id)
-    await logActivity({
-      userId: session.id,
-      userName: session.nama,
-      action: 'DELETE_USER',
-      entity: 'users',
-      entityId: params.id,
-    })
-    return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Gagal menghapus' }, { status: 500 })
   }
 }

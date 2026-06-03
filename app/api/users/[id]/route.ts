@@ -6,7 +6,9 @@ import { logActivity } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!canManageUsers(session.role)) {
@@ -14,6 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   try {
+    const { id } = await params
     const body = await req.json()
     const update: Record<string, unknown> = {}
 
@@ -22,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (typeof body.aktif === 'boolean') {
       update.aktif = body.aktif
       // Jika nonaktif, hapus sesi
-      if (!body.aktif) await invalidateDbSession(params.id)
+      if (!body.aktif) await invalidateDbSession(id)
     }
     if (body.password) {
       if (body.password.length < 6) {
@@ -36,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await supabaseAdmin
       .from('users')
       .update(update)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('id, nama, role, keterangan, aktif')
       .single()
 
@@ -47,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       userName: session.nama,
       action: 'UPDATE_USER',
       entity: 'users',
-      entityId: params.id,
+      entityId: id,
       detail: { changes: Object.keys(update) },
     })
 
@@ -58,26 +61,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: RouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!canManageUsers(session.role)) {
     return NextResponse.json({ error: 'Hanya admin' }, { status: 403 })
   }
+  const { id } = await params
   // Tidak bisa hapus diri sendiri
-  if (params.id === session.id) {
+  if (id === session.id) {
     return NextResponse.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 })
   }
 
   try {
-    await invalidateDbSession(params.id)
-    await supabaseAdmin.from('users').delete().eq('id', params.id)
+    await invalidateDbSession(id)
+    await supabaseAdmin.from('users').delete().eq('id', id)
     await logActivity({
       userId: session.id,
       userName: session.nama,
       action: 'DELETE_USER',
       entity: 'users',
-      entityId: params.id,
+      entityId: id,
     })
     return NextResponse.json({ ok: true })
   } catch {

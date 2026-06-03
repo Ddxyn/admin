@@ -173,12 +173,15 @@ SELECT
     SELECT SUM(p.jumlah) FROM pengeluaran p
     WHERE p.data_harian_id = dh.id
   ), 0) AS keuntungan,
-  COALESCE((
+  COALESCE(( 
     SELECT SUM(pt.jumlah_tandan) FROM pemanen_tandan pt
     WHERE pt.data_harian_id = dh.id
   ), 0) AS total_tandan,
   COUNT(DISTINCT st.id) AS jumlah_supir,
-  COUNT(DISTINCT (SELECT pt.id FROM pemanen_tandan pt WHERE pt.data_harian_id = dh.id)) AS jumlah_pemanen
+  COALESCE((
+    SELECT COUNT(DISTINCT pt.id) FROM pemanen_tandan pt
+    WHERE pt.data_harian_id = dh.id
+  ), 0) AS jumlah_pemanen
 FROM data_harian dh
 LEFT JOIN supir_tonase st ON st.data_harian_id = dh.id
 GROUP BY dh.id, dh.tanggal, dh.harga_per_kg, dh.catatan,

@@ -1,166 +1,103 @@
 # Day Sawit Web Admin Dashboard
 
-Admin dashboard application untuk manajemen data dan pelaporan dengan antarmuka modern dan responsif.
+Dashboard operasional untuk pencatatan harian kebun sawit, monitoring pemasukan dan pengeluaran, pengelolaan petugas, serta pembuatan laporan PDF/CSV.
 
-## 📋 Deskripsi Project
+## Fitur
 
-**Day Sawit Web** adalah aplikasi web admin yang dibangun dengan teknologi modern untuk memudahkan pengelolaan data, visualisasi informasi, dan pembuatan laporan. Aplikasi ini menggunakan Next.js sebagai framework utama dengan integrasi Supabase untuk backend database.
+- Dashboard ringkasan harian, mingguan, dan bulanan.
+- Input data harian: tonase supir, tandan pemanen, harga per kg, dan pengeluaran.
+- Laporan dengan grafik tren, rincian pengeluaran, export PDF, export CSV, dan print.
+- Role-based access control untuk admin, petugas, dan visitor.
+- Manajemen akun petugas oleh admin.
+- Session tracking, cookie HTTP-only, JWT signing, dan audit activity log.
+- Supabase PostgreSQL schema dengan view agregasi laporan.
 
-### Fitur Utama
-- 📊 **Dashboard Analytics** - Visualisasi data real-time dengan Recharts
-- 📄 **Export Reports** - Ekspor data ke format PDF dan Excel
-- 🔐 **Authentication** - Sistem autentikasi yang aman dengan JWT dan bcrypt
-- 🎨 **Modern UI** - Interface yang responsif menggunakan Tailwind CSS
-- 📱 **Responsive Design** - Kompatibel dengan desktop, tablet, dan mobile
-- 🔔 **Toast Notifications** - Feedback visual menggunakan React Hot Toast
+## Tech Stack
 
-## 🛠️ Teknologi yang Digunakan
+- Next.js 16 App Router
+- React 19
+- TypeScript strict mode
+- Tailwind CSS 4
+- Supabase PostgreSQL
+- Recharts
+- jsPDF dan jsPDF AutoTable
+- Jose JWT dan bcryptjs
+- ESLint flat config
 
-### Frontend
-- **Next.js 16.2.6** - React framework untuk production
-- **React 19** - UI library
-- **TypeScript** - Type safety dan development experience yang lebih baik
-- **Tailwind CSS 4.3** - Utility-first CSS framework
-- **Lucide React** - Icon library
-
-### Data & Analytics
-- **Recharts 3.8.1** - Charting library untuk visualisasi data
-- **jsPDF 4.2.1** - PDF generation
-- **jsPDF AutoTable 5.0.7** - Tabel otomatis di PDF
-- **XLSX 0.18.5** - Excel file manipulation
-
-### Backend & Database
-- **Supabase JS 2.105.4** - Backend sebagai service dengan PostgreSQL
-- **Date-fns 4.1.0** - Date manipulation utilities
-
-### Security & Auth
-- **Jose 6.2.3** - JWT (JSON Web Token) handling
-- **bcryptjs 3.0.3** - Password hashing
-- **Next.js ESLint** - Code quality & linting
-
-### Developer Tools
-- **Autoprefixer** - CSS vendor prefixing
-- **PostCSS** - CSS processing
-- **ESLint** - JavaScript/TypeScript linting
-
-## 📊 Komposisi Bahasa
-
-- **TypeScript**: 97.3% - Bahasa utama project
-- **CSS**: 2.2% - Styling
-- **JavaScript**: 0.5% - Configuration files
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 18+ 
-- npm atau yarn
-
-### Installation
+## Quick Start
 
 ```bash
-# Clone repository
 git clone https://github.com/Ddxyn/admin.git
 cd admin
-
-# Install dependencies
 npm install
-```
-
-### Development
-
-```bash
-# Run development server
+cp .env.example .env.local
 npm run dev
 ```
 
-Server akan berjalan di `http://localhost:3000`
+Development server berjalan di `http://localhost:3000`.
 
-### Production Build
+## Environment Variables
 
-```bash
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-### Linting
-
-```bash
-# Check code quality
-npm run lint
-```
-
-## 📁 Project Structure
-
-```
-admin/
-├── app/              # Next.js app directory
-├── components/       # React components
-├── pages/           # Page components
-├── styles/          # CSS dan Tailwind styles
-├── utils/           # Utility functions
-├── lib/             # Library functions
-├── public/          # Static assets
-├── package.json     # Project dependencies
-└── tsconfig.json    # TypeScript configuration
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Buat file `.env.local` di root directory:
+Isi `.env.local` dengan nilai dari Supabase dan secret aplikasi:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+JWT_SECRET=your-random-secret-minimum-32-characters
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### TypeScript
+Generate `JWT_SECRET`:
 
-Configuration dapat disesuaikan di `tsconfig.json`
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
 
-## 📦 Available Scripts
+## Database Setup
 
-| Script | Deskripsi |
-|--------|-----------|
-| `npm run dev` | Jalankan development server |
-| `npm run build` | Build untuk production |
-| `npm start` | Jalankan production server |
-| `npm run lint` | Jalankan ESLint untuk code quality |
+1. Buat project di Supabase.
+2. Buka SQL Editor.
+3. Jalankan isi file `supabase/schema.sql`.
+4. Salin URL, anon key, dan service role key ke `.env.local`.
 
-## 🔐 Security Notes
+Catatan: `SUPABASE_SERVICE_ROLE_KEY` hanya boleh dipakai di server. Jangan expose key ini ke client atau commit file `.env.local`.
 
-- Passwords di-hash menggunakan bcryptjs
-- JWT tokens digunakan untuk session management
-- Supabase menyediakan row-level security (RLS)
-- Semua API calls harus authenticated
+## Available Scripts
 
-## 🤝 Contributing
+| Script | Fungsi |
+| --- | --- |
+| `npm run dev` | Menjalankan development server |
+| `npm run build` | Production build dan type-check |
+| `npm start` | Menjalankan production server |
+| `npm run lint` | ESLint dengan zero warnings |
 
-Kontribusi dipersilakan! Untuk kontribusi besar, silakan buka issue terlebih dahulu untuk diskusi.
+## Quality Gates
 
-1. Fork repository
-2. Buat feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push ke branch (`git push origin feature/AmazingFeature`)
-5. Buka Pull Request
+Project ini sudah disiapkan agar mudah dinilai dan dimaintain:
 
-## 📝 License
+- `npm run lint` wajib bersih.
+- `npm run build` wajib sukses.
+- GitHub Actions menjalankan install, lint, audit production, dan build.
+- Build tidak membutuhkan Supabase secret karena client database dibuat lazy pada runtime.
+- `JWT_SECRET` tidak memiliki fallback insecure.
 
-Project ini dirilis sebagai proyek open-source di bawah lisensi MIT. Silakan menggunakan, mempelajari, memodifikasi, dan mendistribusikan project ini sesuai ketentuan lisensi.
+## Deployment
 
+Target paling sederhana adalah Vercel:
 
-## 👤 Author
+1. Import repository ke Vercel.
+2. Set semua environment variables yang tercantum di atas.
+3. Deploy.
+4. Buka aplikasi dan buat akun admin pertama lewat halaman register admin.
 
-**Ddxyn** - [GitHub Profile](https://github.com/Ddxyn)
+## Security Notes
 
-## 📧 Support
+- Cookie session memakai `httpOnly`, `sameSite=lax`, dan `secure` di production.
+- Admin dapat mengelola petugas dan hanya satu admin yang diizinkan oleh schema database.
+- API route tetap melakukan authorization check walaupun route UI diproteksi proxy.
+- Audit log mencatat login, registrasi admin, perubahan user, dan mutasi data harian.
 
-Untuk pertanyaan atau issue, silakan buka GitHub Issues atau hubungi author.
+## License
 
----
-
-**Last Updated**: 2026-06-02
+MIT. Lihat file `LICENSE`.

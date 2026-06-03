@@ -1,7 +1,6 @@
 import { supabaseAdmin } from './supabase'
 import type {
-  DataHarian, SupirTonase, PemanenTandan,
-  Pengeluaran, KategoriPengeluaran, Ringkasan,
+  DataHarian, KategoriPengeluaran, Ringkasan,
   FormDataHarian
 } from '@/types'
 

@@ -185,11 +185,43 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
     } finally { setExporting(false) }
   }
 
-  async function handleExportExcel() {
+  async function handleExportCsv() {
     if (!stats || dataList.length === 0) { toast.error('Tidak ada data'); return }
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      type ExcelCell = string | number | null | undefined
+      type ExcelRow = ExcelCell[]
+      type CsvWorkbook = { sheets: Array<{ name: string; rows: ExcelRow[] }> }
+
+      const escapeCsv = (value: ExcelCell) => {
+        const text = String(value ?? '')
+        return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+      }
+
+      const XLSX = {
+        utils: {
+          book_new: (): CsvWorkbook => ({ sheets: [] }),
+          aoa_to_sheet: (rows: ExcelRow[]) => rows,
+          book_append_sheet: (workbook: CsvWorkbook, rows: ExcelRow[], name: string) => {
+            workbook.sheets.push({ name, rows })
+          },
+        },
+        writeFile: async (workbook: CsvWorkbook, filename: string) => {
+          const csv = workbook.sheets
+            .flatMap(sheet => [[sheet.name], ...sheet.rows, []])
+            .map(row => row.map(escapeCsv).join(','))
+            .join('\r\n')
+          const blob = new Blob(['\uFEFF', csv], {
+            type: 'text/csv;charset=utf-8',
+          })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = filename.replace(/\.xlsx$/, '.csv')
+          link.click()
+          URL.revokeObjectURL(url)
+        },
+      }
       const wb = XLSX.utils.book_new()
       const r = stats.ringkasan
 
@@ -236,10 +268,10 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
         XLSX.utils.book_append_sheet(wb, ws3, 'Pengeluaran')
       }
 
-      XLSX.writeFile(wb, `laporan-sawit-${stats.dateFrom}-${stats.dateTo}.xlsx`)
-      toast.success('Excel berhasil diunduh!')
+      await XLSX.writeFile(wb, `laporan-sawit-${stats.dateFrom}-${stats.dateTo}.xlsx`)
+      toast.success('CSV berhasil diunduh!')
     } catch (err) {
-      toast.error('Gagal membuat Excel')
+      toast.error('Gagal membuat CSV')
       console.error(err)
     } finally { setExporting(false) }
   }
@@ -309,9 +341,9 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
               <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 text-sm">
                 <Printer size={15} /> Print
               </button>
-              <button onClick={handleExportExcel} disabled={exporting}
+              <button onClick={handleExportCsv} disabled={exporting}
                 className="btn-secondary flex items-center gap-2 text-sm">
-                <Download size={15} /> Excel
+                <Download size={15} /> CSV
               </button>
               <button onClick={handleExportPDF} disabled={exporting}
                 className="btn-primary flex items-center gap-2 text-sm">
@@ -359,7 +391,7 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="#DCE8DC" />
                     <XAxis dataKey="tgl" tick={{ fontSize: 10 }} />
                     <YAxis tickFormatter={v => `${(v / 1e6).toFixed(0)}jt`} tick={{ fontSize: 10 }} width={38} />
-                    <Tooltip formatter={(v: number) => formatRupiah(v)} />
+                    <Tooltip formatter={(value: unknown) => formatRupiah(Number(value ?? 0))} />
                     <Legend iconType="circle" iconSize={8} />
                     <Line type="monotone" dataKey="Pemasukan" stroke="#43A047" strokeWidth={2.5} dot={false} />
                     <Line type="monotone" dataKey="Pengeluaran" stroke="#E53935" strokeWidth={2} dot={false} strokeDasharray="5 4" />

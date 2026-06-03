@@ -1,10 +1,9 @@
 'use client'
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   Search, Filter, Edit2, Trash2, ChevronDown,
-  ChevronUp, Eye, PlusCircle, Truck, Sprout, Receipt
+  ChevronUp, PlusCircle, Truck, Sprout, Receipt
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatRupiah, formatAngka, formatTanggal, getHari } from '@/lib/format'
@@ -19,7 +18,6 @@ interface Props {
 }
 
 export default function DataListClient({ initialData, userRole, defaultFrom, defaultTo }: Props) {
-  const router = useRouter()
   const [data, setData] = useState<DataHarian[]>(initialData)
   const [from, setFrom] = useState(defaultFrom)
   const [to, setTo] = useState(defaultTo)

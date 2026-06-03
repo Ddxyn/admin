@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const data = await getDataHarianList({ from, to, limit, offset })
     return NextResponse.json({ data })
-  } catch (err: unknown) {
+  } catch {
     return NextResponse.json({ error: 'Gagal mengambil data' }, { status: 500 })
   }
 }

@@ -4,16 +4,13 @@ import { getSessionFromRequest } from '@/lib/auth'
 // Route yang tidak perlu auth sama sekali
 const PUBLIC_ROUTES = ['/login', '/register-admin', '/visitor']
 
-// Route yang butuh minimal login (semua role termasuk melihat)
-const VIEW_ROUTES = ['/dashboard', '/data', '/laporan']
-
 // Route yang butuh petugas atau admin
 const PETUGAS_ROUTES = ['/input', '/export']
 
 // Route yang butuh admin saja
 const ADMIN_ROUTES = ['/admin', '/users']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const session = await getSessionFromRequest(request)
 

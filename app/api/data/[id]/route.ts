@@ -4,12 +4,15 @@ import { getDataHarianById, updateDataHarian, deleteDataHarian, logActivity } fr
 
 export const runtime = 'nodejs'
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+export async function GET(_: NextRequest, { params }: RouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const data = await getDataHarianById(params.id)
+    const { id } = await params
+    const data = await getDataHarianById(id)
     if (!data) return NextResponse.json({ error: 'Data tidak ditemukan' }, { status: 404 })
     return NextResponse.json({ data })
   } catch {
@@ -17,7 +20,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: RouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!canEdit(session.role)) {
@@ -25,14 +28,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   try {
+    const { id } = await params
     const form = await req.json()
-    await updateDataHarian(params.id, form, session.id!, session.nama)
+    await updateDataHarian(id, form, session.id!, session.nama)
     await logActivity({
       userId: session.id,
       userName: session.nama,
       action: 'UPDATE_DATA_HARIAN',
       entity: 'data_harian',
-      entityId: params.id,
+      entityId: id,
       detail: { tanggal: form.tanggal },
     })
     return NextResponse.json({ ok: true })
@@ -42,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: RouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!canDelete(session.role)) {
@@ -50,13 +54,14 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    await deleteDataHarian(params.id)
+    const { id } = await params
+    await deleteDataHarian(id)
     await logActivity({
       userId: session.id,
       userName: session.nama,
       action: 'DELETE_DATA_HARIAN',
       entity: 'data_harian',
-      entityId: params.id,
+      entityId: id,
     })
     return NextResponse.json({ ok: true })
   } catch {

@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/auth'
 import { getRingkasan, getTrendData, getPengeluaranByKategori, getDataHarianList } from '@/lib/db'
-import { todayStr, thisWeekRange, thisMonthRange, formatRupiah, formatAngka, formatTanggal, getHari } from '@/lib/format'
+import { todayStr, thisWeekRange, thisMonthRange } from '@/lib/format'
 import DashboardClient from './DashboardClient'
 
 export const dynamic = 'force-dynamic'

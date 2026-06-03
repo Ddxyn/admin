@@ -3,6 +3,9 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   serverExternalPackages: ["bcryptjs"],
+  turbopack: {
+    root: __dirname,
+  },
 
   async headers() {
     return [

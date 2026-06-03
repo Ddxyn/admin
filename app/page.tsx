@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { adminExists } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export default async function RootPage() {
   const exists = await adminExists()
   if (!exists) redirect('/register-admin')

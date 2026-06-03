@@ -150,7 +150,8 @@ Kontribusi dipersilakan! Untuk kontribusi besar, silakan buka issue terlebih dah
 
 ## 📝 License
 
-Project ini bersifat private dan merupakan milik Ddxyn.
+Project ini dirilis sebagai proyek open-source di bawah lisensi MIT. Silakan menggunakan, mempelajari, memodifikasi, dan mendistribusikan project ini sesuai ketentuan lisensi.
+
 
 ## 👤 Author
 

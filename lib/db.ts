@@ -13,19 +13,90 @@ export async function getDataHarianList(params?: {
   limit?: number
   offset?: number
 }): Promise<DataHarian[]> {
-  let q = supabaseAdmin
+  let viewQuery = supabaseAdmin
     .from('v_data_harian')
     .select('*')
     .order('tanggal', { ascending: false })
 
-  if (params?.from) q = q.gte('tanggal', params.from)
-  if (params?.to)   q = q.lte('tanggal', params.to)
-  if (params?.limit) q = q.limit(params.limit)
-  if (params?.offset) q = q.range(params.offset, params.offset + (params.limit ?? 20) - 1)
+  if (params?.from) viewQuery = viewQuery.gte('tanggal', params.from)
+  if (params?.to)   viewQuery = viewQuery.lte('tanggal', params.to)
+  if (params?.offset !== undefined) {
+    viewQuery = viewQuery.range(params.offset, params.offset + (params.limit ?? 20) - 1)
+  } else if (params?.limit) {
+    viewQuery = viewQuery.limit(params.limit)
+  }
 
-  const { data, error } = await q
-  if (error) throw error
-  return data ?? []
+  const { data, error } = await viewQuery
+  if (!error) return data ?? []
+
+  console.error('getDataHarianList view fallback:', error.message)
+
+  let baseQuery = supabaseAdmin
+    .from('data_harian')
+    .select('id, tanggal, harga_per_kg, catatan, created_by_nama, updated_by_nama, created_at, updated_at')
+    .order('tanggal', { ascending: false })
+
+  if (params?.from) baseQuery = baseQuery.gte('tanggal', params.from)
+  if (params?.to)   baseQuery = baseQuery.lte('tanggal', params.to)
+  if (params?.offset !== undefined) {
+    baseQuery = baseQuery.range(params.offset, params.offset + (params.limit ?? 20) - 1)
+  } else if (params?.limit) {
+    baseQuery = baseQuery.limit(params.limit)
+  }
+
+  const { data: rows, error: baseError } = await baseQuery
+  if (baseError) throw baseError
+  if (!rows || rows.length === 0) return []
+
+  const ids = rows.map(row => row.id)
+  const [supir, pemanen, pengeluaran] = await Promise.all([
+    supabaseAdmin.from('supir_tonase').select('data_harian_id, tonase').in('data_harian_id', ids),
+    supabaseAdmin.from('pemanen_tandan').select('data_harian_id, jumlah_tandan').in('data_harian_id', ids),
+    supabaseAdmin.from('pengeluaran').select('data_harian_id, jumlah').in('data_harian_id', ids),
+  ])
+
+  const sumById = <T extends Record<string, unknown>>(
+    list: T[] | null,
+    key: keyof T
+  ) => {
+    const map = new Map<string, number>()
+    for (const item of list ?? []) {
+      const id = String(item.data_harian_id ?? '')
+      map.set(id, (map.get(id) ?? 0) + Number(item[key] ?? 0))
+    }
+    return map
+  }
+
+  const countById = (list: Array<{ data_harian_id?: string }> | null) => {
+    const map = new Map<string, number>()
+    for (const item of list ?? []) {
+      const id = String(item.data_harian_id ?? '')
+      map.set(id, (map.get(id) ?? 0) + 1)
+    }
+    return map
+  }
+
+  const tonaseMap = sumById(supir.data, 'tonase')
+  const tandanMap = sumById(pemanen.data, 'jumlah_tandan')
+  const pengeluaranMap = sumById(pengeluaran.data, 'jumlah')
+  const supirCountMap = countById(supir.data)
+  const pemanenCountMap = countById(pemanen.data)
+
+  return rows.map(row => {
+    const totalTonase = tonaseMap.get(row.id) ?? 0
+    const totalPengeluaran = pengeluaranMap.get(row.id) ?? 0
+    const totalPemasukan = totalTonase * Number(row.harga_per_kg)
+    return {
+      ...row,
+      total_tonase: totalTonase,
+      total_pemasukan: totalPemasukan,
+      total_pengeluaran: totalPengeluaran,
+      keuntungan: totalPemasukan - totalPengeluaran,
+      total_tandan: tandanMap.get(row.id) ?? 0,
+      jumlah_supir: supirCountMap.get(row.id) ?? 0,
+      jumlah_pemanen: pemanenCountMap.get(row.id) ?? 0,
+    }
+  })
 }
 
 export async function getDataHarianById(id: string): Promise<DataHarian | null> {

@@ -221,7 +221,6 @@ export default function InputForm({ kategoriList, editId }: Props) {
               max={todayStr()}
               onChange={e => setTanggal(e.target.value)}
               required
-              disabled={!!editId} // tanggal tidak bisa diubah saat edit
             />
           </div>
           <div>

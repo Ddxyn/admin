@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS visitor_log (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS data_harian (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tanggal DATE NOT NULL UNIQUE,
+  tanggal DATE NOT NULL,
   harga_per_kg NUMERIC(12,2) NOT NULL DEFAULT 0,
   catatan TEXT,
   created_by UUID REFERENCES users(id),
@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS data_harian (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_data_harian_tanggal
+  ON data_harian (tanggal);
 
 -- ============================================================
 -- TABEL SUPIR TONASE

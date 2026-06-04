@@ -78,6 +78,10 @@ function createdAt(value: unknown) {
   return raw || new Date().toISOString()
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 function increment(summary: ImportSummary, table: BackupTable, key: 'inserted' | 'skipped') {
   summary[table][key]++
 }
@@ -123,26 +127,49 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
       continue
     }
 
-    const { data: existing } = await supabaseAdmin
+    if (isUuid(sourceId)) {
+      const { data: existingById } = await supabaseAdmin
+        .from('data_harian')
+        .select('id')
+        .eq('id', sourceId)
+        .maybeSingle()
+
+      if (existingById?.id) {
+        idMap.set(sourceId, existingById.id)
+        restorableDataIds.add(sourceId)
+        increment(summary, 'data_harian', 'skipped')
+        continue
+      }
+    }
+
+    const rowCreatedAt = createdAt(row.created_at)
+    let duplicateQuery = supabaseAdmin
       .from('data_harian')
       .select('id')
       .eq('tanggal', tanggal)
-      .maybeSingle()
+      .eq('harga_per_kg', numberValue(row.harga_per_kg))
+      .eq('created_at', rowCreatedAt)
 
-    if (existing?.id) {
-      idMap.set(sourceId, existing.id)
+    const catatan = nullableText(row.catatan)
+    duplicateQuery = catatan === null
+      ? duplicateQuery.is('catatan', null)
+      : duplicateQuery.eq('catatan', catatan)
+
+    const { data: existingByContent } = await duplicateQuery.maybeSingle()
+    if (existingByContent?.id) {
+      idMap.set(sourceId, existingByContent.id)
       restorableDataIds.add(sourceId)
       increment(summary, 'data_harian', 'skipped')
       continue
     }
 
-    const newId = crypto.randomUUID()
+    const newId = isUuid(sourceId) ? sourceId : crypto.randomUUID()
     const { error } = await supabaseAdmin.from('data_harian').insert({
       id: newId,
       tanggal,
       harga_per_kg: numberValue(row.harga_per_kg),
-      catatan: nullableText(row.catatan),
-      created_at: createdAt(row.created_at),
+      catatan,
+      created_at: rowCreatedAt,
       created_by: session.id,
       created_by_nama: session.nama,
     })

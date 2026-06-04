@@ -17,6 +17,7 @@ export async function getDataHarianList(params?: {
     .from('v_data_harian')
     .select('*')
     .order('tanggal', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (params?.from) viewQuery = viewQuery.gte('tanggal', params.from)
   if (params?.to)   viewQuery = viewQuery.lte('tanggal', params.to)
@@ -35,6 +36,7 @@ export async function getDataHarianList(params?: {
     .from('data_harian')
     .select('id, tanggal, harga_per_kg, catatan, created_at')
     .order('tanggal', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (params?.from) baseQuery = baseQuery.gte('tanggal', params.from)
   if (params?.to)   baseQuery = baseQuery.lte('tanggal', params.to)
@@ -163,14 +165,6 @@ export async function createDataHarian(
   userId: string,
   userName: string
 ): Promise<DataHarian> {
-  // Cek duplikat tanggal
-  const { data: existing } = await supabaseAdmin
-    .from('data_harian')
-    .select('id')
-    .eq('tanggal', form.tanggal)
-    .single()
-  if (existing) throw new Error(`Data tanggal ${form.tanggal} sudah ada`)
-
   const { data: dh, error } = await supabaseAdmin
     .from('data_harian')
     .insert({
@@ -182,7 +176,12 @@ export async function createDataHarian(
     })
     .select()
     .single()
-  if (error) throw error
+  if (error) {
+    if (error.code === '23505' && error.message.toLowerCase().includes('tanggal')) {
+      throw new Error('Database masih membatasi 1 data per tanggal. Jalankan SQL update schema untuk mengizinkan beberapa data pada tanggal yang sama.')
+    }
+    throw error
+  }
 
   // Insert supir
   if (form.supir_list.length > 0) {
@@ -250,6 +249,7 @@ export async function updateDataHarian(
   await supabaseAdmin
     .from('data_harian')
     .update({
+      tanggal: form.tanggal,
       harga_per_kg: parseFloat(form.harga_per_kg),
       catatan: form.catatan || null,
       updated_by: userId,

@@ -1,6 +1,9 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Plus, Tag, Clock, Activity, Database, Download, Upload, ShieldCheck } from 'lucide-react'
+import {
+  Plus, Tag, Clock, Activity, Database, Download, Upload,
+  ShieldCheck, Trash2, AlertTriangle
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { KategoriPengeluaran, ActivityLog } from '@/types'
 
@@ -10,15 +13,18 @@ interface Props {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  LOGIN: '🔐 Login',
-  LOGOUT: '🚪 Logout',
-  CREATE_DATA_HARIAN: '📝 Input Data',
-  UPDATE_DATA_HARIAN: '✏️ Edit Data',
-  DELETE_DATA_HARIAN: '🗑️ Hapus Data',
-  CREATE_PETUGAS: '👤 Tambah Petugas',
-  UPDATE_USER: '✏️ Edit Pengguna',
-  DELETE_USER: '🗑️ Hapus Pengguna',
-  REGISTER_ADMIN: '🌿 Register Admin',
+  LOGIN: 'Login',
+  LOGOUT: 'Logout',
+  CREATE_DATA_HARIAN: 'Input Data',
+  UPDATE_DATA_HARIAN: 'Edit Data',
+  DELETE_DATA_HARIAN: 'Hapus Data',
+  DELETE_DATA_RANGE: 'Hapus Data Rentang',
+  CREATE_PETUGAS: 'Tambah Petugas',
+  UPDATE_USER: 'Edit Pengguna',
+  DELETE_USER: 'Hapus Pengguna',
+  REGISTER_ADMIN: 'Register Admin',
+  EXPORT_BACKUP: 'Download Backup',
+  IMPORT_BACKUP: 'Import Backup',
 }
 
 export default function AdminClient({ kategoriList, activityLog }: Props) {
@@ -28,6 +34,10 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
   const [log, setLog] = useState(activityLog)
   const [backupLoading, setBackupLoading] = useState(false)
   const [importingBackup, setImportingBackup] = useState(false)
+  const [deleteFrom, setDeleteFrom] = useState('')
+  const [deleteTo, setDeleteTo] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deletingRange, setDeletingRange] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleAddKategori(e: React.FormEvent) {
@@ -43,7 +53,6 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      // Reload kategori
       const katRes = await fetch('/api/kategori')
       const katData = await katRes.json()
       setKategori(katData.data ?? [])
@@ -128,6 +137,47 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
     }
   }
 
+  async function handleDeleteRange(e: React.FormEvent) {
+    e.preventDefault()
+    if (!deleteFrom || !deleteTo) {
+      toast.error('Tanggal awal dan akhir wajib diisi')
+      return
+    }
+    if (deleteFrom > deleteTo) {
+      toast.error('Tanggal awal tidak boleh melebihi tanggal akhir')
+      return
+    }
+    if (deleteConfirm !== 'HAPUS') {
+      toast.error('Ketik HAPUS untuk konfirmasi')
+      return
+    }
+
+    const ok = confirm(
+      `Hapus semua data dari ${deleteFrom} sampai ${deleteTo}? Supir, pemanen, dan pengeluaran terkait juga akan terhapus.`
+    )
+    if (!ok) return
+
+    setDeletingRange(true)
+    try {
+      const res = await fetch('/api/admin/delete-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: deleteFrom, to: deleteTo }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Gagal menghapus data')
+
+      const deletedCount = data.data?.deletedCount ?? 0
+      toast.success(`${deletedCount} data harian dihapus`)
+      setDeleteConfirm('')
+      refreshLog()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menghapus data')
+    } finally {
+      setDeletingRange(false)
+    }
+  }
+
   function formatWaktu(ts: string) {
     const d = new Date(ts)
     return d.toLocaleString('id-ID', {
@@ -138,8 +188,6 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
 
   return (
     <div className="space-y-6">
-
-      {/* Backup & Restore */}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-[#DCE8DC] flex items-center gap-3">
           <div className="w-9 h-9 bg-yellow-300 border-2 border-black rounded-lg flex items-center justify-center">
@@ -178,12 +226,70 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
             onChange={e => handleImportBackup(e.target.files?.[0])}
           />
           <p className="text-xs text-gray-500 mt-3">
-            Import bersifat merge: data dengan ID yang sudah ada akan dilewati.
+            Import bersifat merge: data dengan ID atau isi relasi yang sudah ada akan dilewati.
           </p>
         </div>
       </div>
 
-      {/* Kategori Pengeluaran */}
+      <div className="card overflow-hidden border-red-300">
+        <div className="px-5 py-4 border-b border-red-200 flex items-center gap-3">
+          <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center">
+            <AlertTriangle size={18} className="text-red-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-800">Hapus Data Per Tanggal</h2>
+            <p className="text-xs text-gray-500">Admin dapat menghapus data harian berdasarkan rentang tanggal custom</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleDeleteRange} className="p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Dari Tanggal</label>
+              <input
+                type="date"
+                className="input"
+                value={deleteFrom}
+                onChange={e => setDeleteFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Sampai Tanggal</label>
+              <input
+                type="date"
+                className="input"
+                value={deleteTo}
+                onChange={e => setDeleteTo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Konfirmasi</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Ketik HAPUS"
+              value={deleteConfirm}
+              onChange={e => setDeleteConfirm(e.target.value)}
+            />
+          </div>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+            Data harian dalam rentang ini akan dihapus permanen. Detail supir, pemanen, dan pengeluaran ikut terhapus.
+          </div>
+
+          <button
+            type="submit"
+            disabled={deletingRange || !deleteFrom || !deleteTo || deleteConfirm !== 'HAPUS'}
+            className="btn-danger flex items-center justify-center gap-2"
+          >
+            <Trash2 size={16} />
+            {deletingRange ? 'Menghapus...' : 'Hapus Data Rentang'}
+          </button>
+        </form>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-[#DCE8DC] flex items-center gap-3">
           <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -196,7 +302,6 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
         </div>
 
         <div className="p-5">
-          {/* Daftar kategori */}
           <div className="flex flex-wrap gap-2 mb-5">
             {kategori.map(k => (
               <span key={k.id}
@@ -210,7 +315,6 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
             )}
           </div>
 
-          {/* Form tambah */}
           <form onSubmit={handleAddKategori} className="flex gap-3">
             <input
               type="text"
@@ -226,12 +330,11 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
             </button>
           </form>
           <p className="text-xs text-gray-400 mt-2">
-            Kategori yang sudah digunakan tidak bisa dihapus untuk menjaga integritas data.
+            Kategori yang sudah digunakan tetap disimpan untuk menjaga integritas data.
           </p>
         </div>
       </div>
 
-      {/* Info Aplikasi */}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-[#DCE8DC] flex items-center gap-3">
           <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center">
@@ -243,11 +346,11 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
         <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
-              { label: 'Nama Aplikasi', value: 'day 🌿' },
+              { label: 'Nama Aplikasi', value: 'day' },
               { label: 'Versi', value: '2.1.0 Web Edition' },
               { label: 'Database', value: 'Supabase (PostgreSQL)' },
-              { label: 'Framework', value: 'Next.js 14 App Router' },
-              { label: 'Status Sistem', value: '✅ Online' },
+              { label: 'Framework', value: 'Next.js App Router' },
+              { label: 'Status Sistem', value: 'Online' },
               { label: 'Zona Waktu', value: 'WIB (Asia/Jakarta)' },
             ].map(item => (
               <div key={item.label} className="flex justify-between py-2.5 border-b border-[#DCE8DC] last:border-0">
@@ -259,7 +362,6 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
         </div>
       </div>
 
-      {/* Activity Log */}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-[#DCE8DC] flex items-center justify-between">
           <div className="flex items-center gap-3">

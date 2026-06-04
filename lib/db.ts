@@ -310,6 +310,33 @@ export async function deleteDataHarian(id: string): Promise<void> {
   await supabaseAdmin.from('data_harian').delete().eq('id', id)
 }
 
+export async function deleteDataHarianByDateRange(from: string, to: string) {
+  const { data: rows, error: selectError } = await supabaseAdmin
+    .from('data_harian')
+    .select('id, tanggal')
+    .gte('tanggal', from)
+    .lte('tanggal', to)
+    .order('tanggal', { ascending: true })
+
+  if (selectError) throw selectError
+  if (!rows || rows.length === 0) {
+    return { deletedCount: 0, firstDate: null, lastDate: null }
+  }
+
+  const { error } = await supabaseAdmin
+    .from('data_harian')
+    .delete()
+    .gte('tanggal', from)
+    .lte('tanggal', to)
+  if (error) throw error
+
+  return {
+    deletedCount: rows.length,
+    firstDate: rows[0]?.tanggal ?? null,
+    lastDate: rows[rows.length - 1]?.tanggal ?? null,
+  }
+}
+
 // ============================================================
 // RINGKASAN / STATISTIK
 // ============================================================

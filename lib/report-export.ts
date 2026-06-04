@@ -1,5 +1,6 @@
 import { formatRupiah, formatAngka, formatTanggal, getHari } from '@/lib/format'
 import type { DataHarian, Ringkasan } from '@/types'
+import type { jsPDF as JsPDFDocument } from 'jspdf'
 
 export interface ReportStats {
   ringkasan: Ringkasan
@@ -9,6 +10,7 @@ export interface ReportStats {
 }
 
 type Cell = string | number
+type PdfDocumentWithAutoTable = JsPDFDocument & { lastAutoTable?: { finalY: number } }
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -189,52 +191,66 @@ ${xmlSheet('Pengeluaran', [
 export async function downloadPdfReport(stats: ReportStats, dataList: DataHarian[], periode: string) {
   const { default: jsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }) as PdfDocumentWithAutoTable
   const r = stats.ringkasan
   const supirRows = flattenSupir(dataList)
   const pengeluaranRows = flattenPengeluaran(dataList)
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = { left: 10, right: 10 }
+
+  function sectionTitle(title: string, minHeight = 24) {
+    let y = (doc.lastAutoTable?.finalY ?? 24) + 7
+    if (y + minHeight > pageHeight - 14) {
+      doc.addPage()
+      y = 14
+    }
+    doc.setTextColor(17, 17, 17)
+    doc.setFontSize(9.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text(title, margin.left, y)
+    return y + 4
+  }
 
   doc.setFillColor(17, 17, 17)
-  doc.rect(0, 0, 210, 30, 'F')
+  doc.rect(0, 0, pageWidth, 22, 'F')
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(18)
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text('day - Laporan Operasional Kebun Sawit', 14, 13)
-  doc.setFontSize(10)
+  doc.text('day - Laporan Operasional Kebun Sawit', margin.left, 10)
+  doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-  doc.text(periode, 14, 21)
-
-  doc.setTextColor(17, 17, 17)
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('RINGKASAN', 14, 40)
+  doc.text(periode, margin.left, 17)
 
   autoTable(doc, {
-    startY: 44,
-    head: [['Metrik', 'Nilai']],
-    body: [
-      ['Total Pemasukan', formatRupiah(r.total_pemasukan)],
-      ['Total Pengeluaran', formatRupiah(r.total_pengeluaran)],
-      ['Keuntungan Bersih', formatRupiah(r.keuntungan)],
-      ['Total Tonase', `${formatAngka(r.total_tonase)} kg`],
-      ['Total Tandan', `${r.total_tandan}`],
-      ['Hari Kerja', `${r.jumlah_hari_kerja} hari`],
-    ],
-    styles: { fontSize: 9, lineColor: [17, 17, 17], lineWidth: 0.2 },
-    headStyles: { fillColor: [17, 17, 17], textColor: 255 },
-    alternateRowStyles: { fillColor: [255, 243, 176] },
-    margin: { left: 14, right: 14 },
+    startY: 28,
+    head: [['Pemasukan', 'Pengeluaran', 'Keuntungan', 'Tonase', 'Tandan', 'Hari Kerja']],
+    body: [[
+      formatRupiah(r.total_pemasukan),
+      formatRupiah(r.total_pengeluaran),
+      formatRupiah(r.keuntungan),
+      `${formatAngka(r.total_tonase)} kg`,
+      `${r.total_tandan}`,
+      `${r.jumlah_hari_kerja} hari`,
+    ]],
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: { top: 1.8, right: 2, bottom: 1.8, left: 2 },
+      lineColor: [17, 17, 17],
+      lineWidth: 0.12,
+      overflow: 'linebreak',
+      valign: 'middle',
+      halign: 'center',
+    },
+    headStyles: { fillColor: [17, 17, 17], textColor: 255, fontStyle: 'bold' },
+    bodyStyles: { fillColor: [255, 247, 209], fontStyle: 'bold' },
+    margin,
   })
 
-  doc.addPage()
-  doc.setTextColor(17, 17, 17)
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('DETAIL DATA HARIAN', 14, 16)
-
   autoTable(doc, {
-    startY: 20,
-    head: [['Tanggal', 'Hari', 'Tonase', 'Harga/kg', 'Pemasukan', 'Pengeluaran', 'Keuntungan']],
+    startY: sectionTitle('DETAIL DATA HARIAN', 32),
+    head: [['Tanggal', 'Hari', 'Tonase', 'Harga/kg', 'Pemasukan', 'Pengeluaran', 'Keuntungan', 'Oleh']],
     body: dataList.map(dh => [
       formatTanggal(dh.tanggal),
       getHari(dh.tanggal),
@@ -243,6 +259,7 @@ export async function downloadPdfReport(stats: ReportStats, dataList: DataHarian
       formatRupiah(Number(dh.total_pemasukan)),
       formatRupiah(Number(dh.total_pengeluaran)),
       formatRupiah(Number(dh.keuntungan)),
+      dh.created_by_nama ?? '-',
     ]),
     foot: [[
       'TOTAL',
@@ -252,21 +269,36 @@ export async function downloadPdfReport(stats: ReportStats, dataList: DataHarian
       formatRupiah(r.total_pemasukan),
       formatRupiah(r.total_pengeluaran),
       formatRupiah(r.keuntungan),
+      '',
     ]],
-    styles: { fontSize: 8, lineColor: [17, 17, 17], lineWidth: 0.15 },
-    headStyles: { fillColor: [17, 17, 17], textColor: 255 },
+    theme: 'grid',
+    styles: {
+      fontSize: 7.2,
+      cellPadding: { top: 1.15, right: 1.4, bottom: 1.15, left: 1.4 },
+      lineColor: [17, 17, 17],
+      lineWidth: 0.08,
+      overflow: 'linebreak',
+      valign: 'middle',
+    },
+    headStyles: { fillColor: [17, 17, 17], textColor: 255, fontStyle: 'bold' },
     footStyles: { fillColor: [255, 216, 77], textColor: [17, 17, 17], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [255, 247, 209] },
-    margin: { left: 14, right: 14 },
+    columnStyles: {
+      0: { cellWidth: 24 },
+      1: { cellWidth: 20 },
+      2: { halign: 'right', cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 28 },
+      4: { halign: 'right', cellWidth: 34 },
+      5: { halign: 'right', cellWidth: 34 },
+      6: { halign: 'right', cellWidth: 34 },
+      7: { cellWidth: 28 },
+    },
+    margin,
   })
 
   if (supirRows.length > 0) {
-    doc.addPage()
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.text('DETAIL TONASE PER SUPIR', 14, 16)
     autoTable(doc, {
-      startY: 20,
+      startY: sectionTitle('DETAIL TONASE PER SUPIR', 26),
       head: [['Tanggal', 'Hari', 'Nama Supir', 'Tonase', 'Pemasukan']],
       body: supirRows.map(row => [
         formatTanggal(row.tanggal),
@@ -275,40 +307,68 @@ export async function downloadPdfReport(stats: ReportStats, dataList: DataHarian
         `${formatAngka(Number(row.tonase))} kg`,
         formatRupiah(row.pemasukan),
       ]),
-      styles: { fontSize: 8, lineColor: [17, 17, 17], lineWidth: 0.15 },
-      headStyles: { fillColor: [17, 17, 17], textColor: 255 },
+      theme: 'grid',
+      styles: {
+        fontSize: 7.2,
+        cellPadding: { top: 1.15, right: 1.4, bottom: 1.15, left: 1.4 },
+        lineColor: [17, 17, 17],
+        lineWidth: 0.08,
+        overflow: 'linebreak',
+        valign: 'middle',
+      },
+      headStyles: { fillColor: [17, 17, 17], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [255, 247, 209] },
-      margin: { left: 14, right: 14 },
+      columnStyles: {
+        0: { cellWidth: 26 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 82 },
+        3: { halign: 'right', cellWidth: 34 },
+        4: { halign: 'right', cellWidth: 42 },
+      },
+      margin,
     })
   }
 
   if (pengeluaranRows.length > 0) {
-    doc.addPage()
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.text('DETAIL PENGELUARAN', 14, 16)
     autoTable(doc, {
-      startY: 20,
+      startY: sectionTitle('DETAIL PENGELUARAN', 26),
       head: [['Tanggal', 'Kategori', 'Deskripsi', 'Jumlah']],
       body: pengeluaranRows.map(row => [
         formatTanggal(row.tanggal),
         row.kategori,
-        row.deskripsi ?? '',
+        row.deskripsi ?? '-',
         formatRupiah(Number(row.jumlah)),
       ]),
-      styles: { fontSize: 8, lineColor: [17, 17, 17], lineWidth: 0.15 },
-      headStyles: { fillColor: [17, 17, 17], textColor: 255 },
+      foot: [['TOTAL', '', '', formatRupiah(r.total_pengeluaran)]],
+      theme: 'grid',
+      styles: {
+        fontSize: 7.2,
+        cellPadding: { top: 1.15, right: 1.4, bottom: 1.15, left: 1.4 },
+        lineColor: [17, 17, 17],
+        lineWidth: 0.08,
+        overflow: 'linebreak',
+        valign: 'middle',
+      },
+      headStyles: { fillColor: [17, 17, 17], textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [255, 216, 77], textColor: [17, 17, 17], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [255, 247, 209] },
-      margin: { left: 14, right: 14 },
+      columnStyles: {
+        0: { cellWidth: 28 },
+        1: { cellWidth: 48 },
+        2: { cellWidth: 142 },
+        3: { halign: 'right', cellWidth: 44 },
+      },
+      margin,
     })
   }
 
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setFontSize(8)
-    doc.setTextColor(120)
-    doc.text(`day Web - ${periode} - Hal ${i}/${pageCount}`, 14, 290)
+    doc.setFontSize(7)
+    doc.setTextColor(100)
+    doc.text(`day Web - ${periode}`, margin.left, pageHeight - 6)
+    doc.text(`Hal ${i}/${pageCount}`, pageWidth - margin.right, pageHeight - 6, { align: 'right' })
   }
 
   doc.save(`laporan-sawit-${stats.dateFrom}-${stats.dateTo}.pdf`)

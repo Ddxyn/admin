@@ -90,7 +90,7 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
   const summary = emptySummary()
   const errors: string[] = []
   const idMap = new Map<string, string>()
-  const activeDataIds = new Set<string>()
+  const restorableDataIds = new Set<string>()
 
   for (const row of rowsFrom(payload, 'kategori_pengeluaran')) {
     const nama = text(row.nama)
@@ -131,6 +131,7 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
 
     if (existing?.id) {
       idMap.set(sourceId, existing.id)
+      restorableDataIds.add(sourceId)
       increment(summary, 'data_harian', 'skipped')
       continue
     }
@@ -153,14 +154,30 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     }
 
     idMap.set(sourceId, newId)
-    activeDataIds.add(sourceId)
+    restorableDataIds.add(sourceId)
     increment(summary, 'data_harian', 'inserted')
   }
 
   for (const row of rowsFrom(payload, 'supir_tonase')) {
     const parentSourceId = text(row.data_harian_id)
     const dataHarianId = idMap.get(parentSourceId)
-    if (!dataHarianId || !activeDataIds.has(parentSourceId)) {
+    if (!dataHarianId || !restorableDataIds.has(parentSourceId)) {
+      increment(summary, 'supir_tonase', 'skipped')
+      continue
+    }
+
+    const namaSupir = text(row.nama_supir)
+    const tonase = numberValue(row.tonase)
+    const tanggal = dateText(row.tanggal)
+    const { data: duplicate } = await supabaseAdmin
+      .from('supir_tonase')
+      .select('id')
+      .eq('data_harian_id', dataHarianId)
+      .eq('nama_supir', namaSupir)
+      .eq('tonase', tonase)
+      .eq('tanggal', tanggal)
+      .maybeSingle()
+    if (duplicate?.id) {
       increment(summary, 'supir_tonase', 'skipped')
       continue
     }
@@ -168,9 +185,9 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const { error } = await supabaseAdmin.from('supir_tonase').insert({
       id: crypto.randomUUID(),
       data_harian_id: dataHarianId,
-      nama_supir: text(row.nama_supir),
-      tonase: numberValue(row.tonase),
-      tanggal: dateText(row.tanggal),
+      nama_supir: namaSupir,
+      tonase,
+      tanggal,
     })
 
     if (error) {
@@ -184,7 +201,23 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
   for (const row of rowsFrom(payload, 'pemanen_tandan')) {
     const parentSourceId = text(row.data_harian_id)
     const dataHarianId = idMap.get(parentSourceId)
-    if (!dataHarianId || !activeDataIds.has(parentSourceId)) {
+    if (!dataHarianId || !restorableDataIds.has(parentSourceId)) {
+      increment(summary, 'pemanen_tandan', 'skipped')
+      continue
+    }
+
+    const namaPemanen = text(row.nama_pemanen)
+    const jumlahTandan = intValue(row.jumlah_tandan)
+    const tanggal = dateText(row.tanggal)
+    const { data: duplicate } = await supabaseAdmin
+      .from('pemanen_tandan')
+      .select('id')
+      .eq('data_harian_id', dataHarianId)
+      .eq('nama_pemanen', namaPemanen)
+      .eq('jumlah_tandan', jumlahTandan)
+      .eq('tanggal', tanggal)
+      .maybeSingle()
+    if (duplicate?.id) {
       increment(summary, 'pemanen_tandan', 'skipped')
       continue
     }
@@ -192,9 +225,9 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const { error } = await supabaseAdmin.from('pemanen_tandan').insert({
       id: crypto.randomUUID(),
       data_harian_id: dataHarianId,
-      nama_pemanen: text(row.nama_pemanen),
-      jumlah_tandan: intValue(row.jumlah_tandan),
-      tanggal: dateText(row.tanggal),
+      nama_pemanen: namaPemanen,
+      jumlah_tandan: jumlahTandan,
+      tanggal,
     })
 
     if (error) {
@@ -208,7 +241,29 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
   for (const row of rowsFrom(payload, 'pengeluaran')) {
     const parentSourceId = text(row.data_harian_id)
     const dataHarianId = idMap.get(parentSourceId)
-    if (!dataHarianId || !activeDataIds.has(parentSourceId)) {
+    if (!dataHarianId || !restorableDataIds.has(parentSourceId)) {
+      increment(summary, 'pengeluaran', 'skipped')
+      continue
+    }
+
+    const tanggal = dateText(row.tanggal)
+    const kategori = text(row.kategori)
+    const deskripsi = nullableText(row.deskripsi)
+    const jumlah = numberValue(row.jumlah)
+    let duplicateQuery = supabaseAdmin
+      .from('pengeluaran')
+      .select('id')
+      .eq('data_harian_id', dataHarianId)
+      .eq('tanggal', tanggal)
+      .eq('kategori', kategori)
+      .eq('jumlah', jumlah)
+
+    duplicateQuery = deskripsi === null
+      ? duplicateQuery.is('deskripsi', null)
+      : duplicateQuery.eq('deskripsi', deskripsi)
+
+    const { data: duplicate } = await duplicateQuery.maybeSingle()
+    if (duplicate?.id) {
       increment(summary, 'pengeluaran', 'skipped')
       continue
     }
@@ -216,10 +271,10 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const { error } = await supabaseAdmin.from('pengeluaran').insert({
       id: crypto.randomUUID(),
       data_harian_id: dataHarianId,
-      tanggal: dateText(row.tanggal),
-      kategori: text(row.kategori),
-      deskripsi: nullableText(row.deskripsi),
-      jumlah: numberValue(row.jumlah),
+      tanggal,
+      kategori,
+      deskripsi,
+      jumlah,
       created_at: createdAt(row.created_at),
       created_by: session.id,
       created_by_nama: session.nama,

@@ -108,7 +108,40 @@ export async function getDataHarianById(id: string): Promise<DataHarian | null> 
     .select('*')
     .eq('id', id)
     .single()
-  if (error) return null
+  if (error) {
+    console.error('getDataHarianById view fallback:', error.message)
+
+    const { data: base, error: baseError } = await supabaseAdmin
+      .from('data_harian')
+      .select('id, tanggal, harga_per_kg, catatan, created_by_nama, updated_by_nama, created_at, updated_at')
+      .eq('id', id)
+      .single()
+    if (baseError || !base) return null
+
+    const [supir, pemanen, pengeluaran] = await Promise.all([
+      supabaseAdmin.from('supir_tonase').select('*').eq('data_harian_id', id),
+      supabaseAdmin.from('pemanen_tandan').select('*').eq('data_harian_id', id),
+      supabaseAdmin.from('pengeluaran').select('*').eq('data_harian_id', id),
+    ])
+
+    const totalTonase = (supir.data ?? []).reduce((sum, row) => sum + Number(row.tonase), 0)
+    const totalTandan = (pemanen.data ?? []).reduce((sum, row) => sum + Number(row.jumlah_tandan), 0)
+    const totalPengeluaran = (pengeluaran.data ?? []).reduce((sum, row) => sum + Number(row.jumlah), 0)
+    const totalPemasukan = totalTonase * Number(base.harga_per_kg)
+
+    return {
+      ...base,
+      total_tonase: totalTonase,
+      total_pemasukan: totalPemasukan,
+      total_pengeluaran: totalPengeluaran,
+      keuntungan: totalPemasukan - totalPengeluaran,
+      total_tandan: totalTandan,
+      jumlah_supir: supir.data?.length ?? 0,
+      supir_list: supir.data ?? [],
+      pemanen_list: pemanen.data ?? [],
+      pengeluaran_list: pengeluaran.data ?? [],
+    }
+  }
 
   // Load relasi
   const [supir, pemanen, pengeluaran] = await Promise.all([
@@ -365,10 +398,41 @@ export async function getKategori(): Promise<KategoriPengeluaran[]> {
   return data ?? []
 }
 
-export async function addKategori(nama: string): Promise<void> {
-  await supabaseAdmin
+export async function addKategori(nama: string): Promise<KategoriPengeluaran> {
+  const cleanName = nama.trim()
+  const { data, error } = await supabaseAdmin
     .from('kategori_pengeluaran')
-    .upsert({ nama: nama.trim() }, { onConflict: 'nama' })
+    .upsert({ nama: cleanName, icon: 'other', aktif: true }, { onConflict: 'nama' })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
+const DEFAULT_KATEGORI_NAMES = new Set([
+  'Upah Panen',
+  'Upah Tarik Bargas',
+  'Upah Muat',
+  'Biaya Transportasi',
+  'Biaya Lainnya',
+])
+
+export async function deleteKategori(id: string): Promise<void> {
+  const { data } = await supabaseAdmin
+    .from('kategori_pengeluaran')
+    .select('nama')
+    .eq('id', id)
+    .single()
+
+  if (data?.nama && DEFAULT_KATEGORI_NAMES.has(data.nama)) {
+    throw new Error('Kategori bawaan tidak bisa dihapus')
+  }
+
+  const { error } = await supabaseAdmin
+    .from('kategori_pengeluaran')
+    .update({ aktif: false })
+    .eq('id', id)
+  if (error) throw error
 }
 
 // ============================================================

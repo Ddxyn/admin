@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Truck, Sprout, Receipt, Calculator } from 'lucide-react'
+import { Plus, Trash2, Truck, Sprout, Receipt, Calculator, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { todayStr, formatRupiah } from '@/lib/format'
 import type { KategoriPengeluaran, FormSupir, FormPemanen, FormPengeluaran, DataHarian } from '@/types'
@@ -15,7 +15,6 @@ interface Props {
 
 const emptySupir = (): FormSupir => ({ nama_supir: '', tonase: '' })
 const emptyPemanen = (): FormPemanen => ({ nama_pemanen: '', jumlah_tandan: '' })
-const emptyPengeluaran = (): FormPengeluaran => ({ kategori: '', deskripsi: '', jumlah: '' })
 
 export default function InputForm({ kategoriList, editId }: Props) {
   const router = useRouter()
@@ -31,7 +30,20 @@ export default function InputForm({ kategoriList, editId }: Props) {
 
   const [supirHistory, setSupirHistory] = useState<string[]>([])
   const [pemanenHistory, setPemanenHistory] = useState<string[]>([])
-  const kategoriOptions = kategoriList.map(k => k.nama)
+  const [kategoriOptions, setKategoriOptions] = useState(kategoriList.map(k => k.nama))
+  const [pengeluaranModalOpen, setPengeluaranModalOpen] = useState(false)
+  const [pengeluaranKategori, setPengeluaranKategori] = useState(kategoriOptions[0] ?? '')
+  const [pengeluaranJumlah, setPengeluaranJumlah] = useState('')
+  const [pengeluaranDeskripsi, setPengeluaranDeskripsi] = useState('')
+  const [kategoriBaru, setKategoriBaru] = useState('')
+  const [addingKategoriBaru, setAddingKategoriBaru] = useState(false)
+  const [savingKategori, setSavingKategori] = useState(false)
+
+  useEffect(() => {
+    const names = kategoriList.map(k => k.nama)
+    setKategoriOptions(names)
+    setPengeluaranKategori(current => current || names[0] || '')
+  }, [kategoriList])
 
   // Load history nama
   useEffect(() => {
@@ -77,6 +89,70 @@ export default function InputForm({ kategoriList, editId }: Props) {
   const totalPemasukan = totalTonase * hargaNum
   const totalPengeluaran = pengeluaranList.reduce((s, x) => s + (parseFloat(x.jumlah) || 0), 0)
   const keuntungan = totalPemasukan - totalPengeluaran
+
+  function openPengeluaranModal() {
+    setPengeluaranKategori(kategoriOptions[0] ?? '')
+    setPengeluaranJumlah('')
+    setPengeluaranDeskripsi('')
+    setKategoriBaru('')
+    setAddingKategoriBaru(false)
+    setPengeluaranModalOpen(true)
+  }
+
+  function closePengeluaranModal() {
+    setPengeluaranModalOpen(false)
+    setAddingKategoriBaru(false)
+    setKategoriBaru('')
+  }
+
+  async function handleAddKategoriBaru() {
+    const nama = kategoriBaru.trim()
+    if (!nama) {
+      toast.error('Nama kategori wajib diisi')
+      return
+    }
+
+    setSavingKategori(true)
+    try {
+      const res = await fetch('/api/kategori', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Gagal menambah kategori')
+
+      const savedName = json.data?.nama ?? nama
+      setKategoriOptions(list => list.includes(savedName) ? list : [...list, savedName].sort())
+      setPengeluaranKategori(savedName)
+      setKategoriBaru('')
+      setAddingKategoriBaru(false)
+      toast.success('Kategori ditambahkan')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menambah kategori')
+    } finally {
+      setSavingKategori(false)
+    }
+  }
+
+  function handleAddPengeluaran() {
+    const jumlah = parseFloat(pengeluaranJumlah)
+    if (!pengeluaranKategori) {
+      toast.error('Kategori wajib dipilih')
+      return
+    }
+    if (!Number.isFinite(jumlah) || jumlah <= 0) {
+      toast.error('Jumlah harus lebih dari 0')
+      return
+    }
+
+    setPengeluaranList(list => [...list, {
+      kategori: pengeluaranKategori,
+      deskripsi: pengeluaranDeskripsi.trim(),
+      jumlah: String(jumlah),
+    }])
+    closePengeluaranModal()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -321,53 +397,41 @@ export default function InputForm({ kategoriList, editId }: Props) {
             </div>
           </div>
           <button type="button"
-            onClick={() => setPengeluaranList(s => [...s, { ...emptyPengeluaran(), kategori: kategoriOptions[0] ?? '' }])}
+            onClick={openPengeluaranModal}
             className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1">
             <Plus size={14} /> Tambah
           </button>
         </div>
 
         {pengeluaranList.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-2">Belum ada pengeluaran</p>
+          <button
+            type="button"
+            onClick={openPengeluaranModal}
+            className="w-full border-2 border-dashed border-[#DCE8DC] rounded-xl py-4 text-gray-400 text-sm hover:border-[#2E7D32] hover:text-[#2E7D32] transition-colors"
+          >
+            + Tap untuk tambah pengeluaran
+          </button>
         ) : (
           <div className="space-y-3">
             {pengeluaranList.map((p, i) => (
               <div key={i} className="bg-[#F9FBF2] rounded-xl p-3 border border-[#DCE8DC]">
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-400 mb-1 block">KATEGORI</label>
-                    <select
-                      className="input text-sm"
-                      value={p.kategori}
-                      onChange={e => setPengeluaranList(list => list.map((x, j) => j === i ? { ...x, kategori: e.target.value } : x))}
-                    >
-                      <option value="">Pilih kategori</option>
-                      {kategoriOptions.map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-gray-800">{p.kategori}</div>
+                    {p.deskripsi && (
+                      <div className="text-xs text-gray-500 mt-0.5 break-words">{p.deskripsi}</div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-400 mb-1 block">JUMLAH (Rp)</label>
-                    <input
-                      type="number"
-                      className="input text-sm"
-                      placeholder="0"
-                      value={p.jumlah}
-                      onChange={e => setPengeluaranList(list => list.map((x, j) => j === i ? { ...x, jumlah: e.target.value } : x))}
-                      min="0"
-                    />
+                  <div className="text-sm font-bold text-[#E53935] whitespace-nowrap">
+                    {formatRupiah(Number(p.jumlah))}
                   </div>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    className="input text-sm flex-1"
-                    placeholder="Deskripsi (opsional)"
-                    value={p.deskripsi}
-                    onChange={e => setPengeluaranList(list => list.map((x, j) => j === i ? { ...x, deskripsi: e.target.value } : x))}
-                  />
-                  <button type="button" onClick={() => setPengeluaranList(list => list.filter((_, j) => j !== i))}
-                    className="text-red-400 hover:text-red-600 p-1.5">
-                    <Trash2 size={16} />
+                  <button
+                    type="button"
+                    onClick={() => setPengeluaranList(list => list.filter((_, j) => j !== i))}
+                    className="text-gray-400 hover:text-red-600 p-1"
+                    title="Hapus pengeluaran"
+                  >
+                    <X size={16} />
                   </button>
                 </div>
               </div>
@@ -382,6 +446,99 @@ export default function InputForm({ kategoriList, editId }: Props) {
           </div>
         )}
       </div>
+
+      {pengeluaranModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 py-6">
+          <div className="bg-white border-2 border-black rounded-lg shadow-[7px_7px_0_#111] w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-gray-950 uppercase">Tambah Pengeluaran</h2>
+              <button
+                type="button"
+                onClick={closePengeluaranModal}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"
+                title="Tutup"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="label">Kategori</label>
+                <select
+                  className="input"
+                  value={addingKategoriBaru ? '__custom__' : pengeluaranKategori}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      setAddingKategoriBaru(true)
+                      setPengeluaranKategori('')
+                    } else {
+                      setAddingKategoriBaru(false)
+                      setPengeluaranKategori(e.target.value)
+                    }
+                  }}
+                >
+                  {kategoriOptions.map(k => <option key={k} value={k}>{k}</option>)}
+                  <option value="__custom__">+ Kategori Baru</option>
+                </select>
+              </div>
+
+              {addingKategoriBaru && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input flex-1"
+                    placeholder="Nama kategori"
+                    value={kategoriBaru}
+                    onChange={e => setKategoriBaru(e.target.value)}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddKategoriBaru}
+                    disabled={savingKategori}
+                    className="btn-secondary px-3 py-2 text-sm"
+                  >
+                    {savingKategori ? '...' : 'Simpan'}
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <label className="label">Jumlah (Rp)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0"
+                  value={pengeluaranJumlah}
+                  onChange={e => setPengeluaranJumlah(e.target.value)}
+                  min="0"
+                  autoFocus={!addingKategoriBaru}
+                />
+              </div>
+
+              <div>
+                <label className="label">Deskripsi (opsional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Contoh: mobil ps, ransum, upah ngepok"
+                  value={pengeluaranDeskripsi}
+                  onChange={e => setPengeluaranDeskripsi(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddPengeluaran}
+                className="btn-primary w-full mt-2"
+              >
+                Tambahkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Catatan */}
       <div className="card p-5">

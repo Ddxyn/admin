@@ -48,19 +48,19 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1B5E20] to-[#2E7D32] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#FFE66D] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-2xl mb-4">
-            <Leaf className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#B6FF63] border-4 border-black rounded-xl mb-4 shadow-[5px_5px_0_#111]">
+            <Leaf className="w-8 h-8 text-black" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">day</h1>
-          <p className="text-green-200 text-sm mt-1">Manajemen Kebun Sawit</p>
+          <h1 className="text-4xl font-black text-black tracking-tight">day</h1>
+          <p className="text-black text-sm mt-1 font-bold">Manajemen Kebun Sawit</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Masuk</h2>
+        <div className="bg-white rounded-lg border-4 border-black p-8 shadow-[8px_8px_0_#111]">
+          <h2 className="text-xl font-black text-gray-950 mb-6 uppercase">Masuk</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

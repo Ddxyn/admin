@@ -56,8 +56,8 @@ export default function RegisterAdminPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-[#1B5E20] flex items-center justify-center">
-        <div className="text-white text-lg animate-pulse">Memuat...</div>
+      <div className="min-h-screen bg-[#FFE66D] flex items-center justify-center">
+        <div className="text-black text-lg font-black animate-pulse">Memuat...</div>
       </div>
     )
   }
@@ -65,17 +65,17 @@ export default function RegisterAdminPage() {
   if (adminExists) return null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1B5E20] to-[#2E7D32] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#FFE66D] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🌿</div>
-          <h1 className="text-3xl font-bold text-white">day</h1>
-          <p className="text-green-200 mt-1">Manajemen Kebun Sawit</p>
+          <h1 className="text-4xl font-black text-black">day</h1>
+          <p className="text-black mt-1 font-bold">Manajemen Kebun Sawit</p>
         </div>
 
         {!showCredentials ? (
-          <div className="bg-white rounded-2xl p-8 shadow-2xl">
+          <div className="bg-white rounded-lg border-4 border-black p-8 shadow-[8px_8px_0_#111]">
             <div className="mb-6">
               <h2 className="text-xl font-bold text-gray-800">Daftarkan Admin</h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -140,7 +140,7 @@ export default function RegisterAdminPage() {
           </div>
         ) : (
           /* Tampilkan kredensial sekali saja */
-          <div className="bg-white rounded-2xl p-8 shadow-2xl">
+          <div className="bg-white rounded-lg border-4 border-black p-8 shadow-[8px_8px_0_#111]">
             <div className="text-center mb-6">
               <div className="text-4xl mb-2">✅</div>
               <h2 className="text-xl font-bold text-[#1B5E20]">Admin Berhasil Didaftarkan!</h2>

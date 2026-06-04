@@ -33,17 +33,17 @@ export default function VisitorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1B5E20] to-[#2E7D32] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#FFE66D] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-2xl mb-4">
-            <Eye className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#A7F3D0] border-4 border-black rounded-xl mb-4 shadow-[5px_5px_0_#111]">
+            <Eye className="w-8 h-8 text-black" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Pengunjung</h1>
+          <h1 className="text-3xl font-black text-black">Pengunjung</h1>
           <p className="text-green-200 text-sm mt-1">Akses terbatas — hanya lihat data</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white rounded-lg border-4 border-black p-8 shadow-[8px_8px_0_#111]">
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
             <p className="text-blue-700 text-sm font-semibold">ℹ️ Mode Pengunjung</p>
             <ul className="text-blue-600 text-xs mt-2 space-y-1">

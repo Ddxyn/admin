@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { Plus, Tag, Clock, Activity, Database } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Plus, Tag, Clock, Activity, Database, Download, Upload, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { KategoriPengeluaran, ActivityLog } from '@/types'
 
@@ -26,6 +26,9 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
   const [newKat, setNewKat] = useState('')
   const [addingKat, setAddingKat] = useState(false)
   const [log, setLog] = useState(activityLog)
+  const [backupLoading, setBackupLoading] = useState(false)
+  const [importingBackup, setImportingBackup] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleAddKategori(e: React.FormEvent) {
     e.preventDefault()
@@ -64,6 +67,67 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
     }
   }
 
+  async function handleExportBackup() {
+    setBackupLoading(true)
+    try {
+      const res = await fetch('/api/backup')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Gagal membuat backup')
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const disposition = res.headers.get('content-disposition') ?? ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      link.download = match?.[1] ?? `backup-sawit-${new Date().toISOString().slice(0, 10)}.json`
+      link.href = url
+      link.click()
+      URL.revokeObjectURL(url)
+
+      toast.success('Backup JSON berhasil diunduh')
+      refreshLog()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat backup')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  async function handleImportBackup(file?: File) {
+    if (!file) return
+    if (!confirm(`Import backup "${file.name}"? Data yang sudah ada akan dilewati.`)) {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    setImportingBackup(true)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Gagal import backup')
+
+      const total = Object.values(data.summary ?? {}).reduce((sum: number, row) => {
+        const item = row as { inserted?: number }
+        return sum + (item.inserted ?? 0)
+      }, 0)
+      toast.success(`Import selesai: ${total} baris baru`)
+      refreshLog()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal import backup')
+    } finally {
+      setImportingBackup(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   function formatWaktu(ts: string) {
     const d = new Date(ts)
     return d.toLocaleString('id-ID', {
@@ -74,6 +138,50 @@ export default function AdminClient({ kategoriList, activityLog }: Props) {
 
   return (
     <div className="space-y-6">
+
+      {/* Backup & Restore */}
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#DCE8DC] flex items-center gap-3">
+          <div className="w-9 h-9 bg-yellow-300 border-2 border-black rounded-lg flex items-center justify-center">
+            <ShieldCheck size={18} className="text-black" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">Backup & Restore</h2>
+            <p className="text-xs text-gray-600">Export dan import data operasional dalam format JSON</p>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={handleExportBackup}
+              disabled={backupLoading}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              <Download size={16} />
+              {backupLoading ? 'Membuat Backup...' : 'Download Backup'}
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importingBackup}
+              className="btn-secondary flex items-center justify-center gap-2"
+            >
+              <Upload size={16} />
+              {importingBackup ? 'Mengimport...' : 'Import Backup'}
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={e => handleImportBackup(e.target.files?.[0])}
+          />
+          <p className="text-xs text-gray-500 mt-3">
+            Import bersifat merge: data dengan ID yang sudah ada akan dilewati.
+          </p>
+        </div>
+      </div>
 
       {/* Kategori Pengeluaran */}
       <div className="card overflow-hidden">

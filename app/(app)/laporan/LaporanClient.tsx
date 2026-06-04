@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
-import { FileText, Download, Printer, RefreshCw } from 'lucide-react'
+import { FileText, Download, Printer, RefreshCw, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatRupiah, formatAngka, formatTanggal, getHari, monthRange } from '@/lib/format'
 import type { Ringkasan, DataHarian } from '@/types'
@@ -280,6 +280,27 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
     window.print()
   }
 
+  function handleShareWhatsApp() {
+    if (!stats) { toast.error('Tidak ada laporan untuk dibagikan'); return }
+
+    const r = stats.ringkasan
+    const lines = [
+      '*Laporan Operasional Kebun Sawit*',
+      periodeLabel(),
+      '',
+      `Pemasukan: ${formatRupiah(r.total_pemasukan)}`,
+      `Pengeluaran: ${formatRupiah(r.total_pengeluaran)}`,
+      `Keuntungan: ${formatRupiah(r.keuntungan)}`,
+      `Tonase: ${formatAngka(r.total_tonase)} kg`,
+      `Tandan: ${r.total_tandan}`,
+      `Hari kerja: ${r.jumlah_hari_kerja} hari`,
+      '',
+      'Dikirim dari day Web',
+    ]
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener,noreferrer')
+  }
+
   const chartData = (stats?.trend ?? []).map(d => ({
     tgl: formatTanggal(d.tanggal).slice(0, 5),
     Pemasukan: Number(d.total_pemasukan),
@@ -344,6 +365,10 @@ export default function LaporanClient({ userRole }: { userRole: string }) {
               <button onClick={handleExportCsv} disabled={exporting}
                 className="btn-secondary flex items-center gap-2 text-sm">
                 <Download size={15} /> CSV
+              </button>
+              <button onClick={handleShareWhatsApp}
+                className="btn-secondary flex items-center gap-2 text-sm">
+                <MessageCircle size={15} /> WhatsApp
               </button>
               <button onClick={handleExportPDF} disabled={exporting}
                 className="btn-primary flex items-center gap-2 text-sm">

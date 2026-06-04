@@ -109,6 +109,7 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
   const errors: string[] = []
   const idMap = new Map<string, string>()
   const restorableDataIds = new Set<string>()
+  const legacyMappedDataIds = new Set<string>()
 
   for (const row of rowsFrom(payload, 'kategori_pengeluaran')) {
     const nama = text(row.nama)
@@ -144,6 +145,26 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
 
     const rowCreatedAt = createdAt(row.created_at)
     const catatan = nullableText(row.catatan)
+
+    let legacyDuplicateQuery = supabaseAdmin
+      .from('data_harian')
+      .select('id')
+      .eq('tanggal', tanggal)
+      .eq('harga_per_kg', numberValue(row.harga_per_kg))
+      .eq('created_at', rowCreatedAt)
+
+    legacyDuplicateQuery = catatan === null
+      ? legacyDuplicateQuery.is('catatan', null)
+      : legacyDuplicateQuery.eq('catatan', catatan)
+
+    const { data: legacyDuplicate } = await legacyDuplicateQuery.maybeSingle()
+    if (legacyDuplicate?.id) {
+      idMap.set(sourceId, legacyDuplicate.id)
+      restorableDataIds.add(sourceId)
+      legacyMappedDataIds.add(sourceId)
+      increment(summary, 'data_harian', 'skipped')
+      continue
+    }
 
     const { error } = await supabaseAdmin.from('data_harian').insert({
       id: dataHarianId,
@@ -190,6 +211,22 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const namaSupir = text(row.nama_supir)
     const tonase = numberValue(row.tonase)
     const tanggal = dateText(row.tanggal)
+
+    if (legacyMappedDataIds.has(parentSourceId)) {
+      const { data: legacyDuplicate } = await supabaseAdmin
+        .from('supir_tonase')
+        .select('id')
+        .eq('data_harian_id', dataHarianId)
+        .eq('nama_supir', namaSupir)
+        .eq('tonase', tonase)
+        .eq('tanggal', tanggal)
+        .maybeSingle()
+      if (legacyDuplicate?.id) {
+        increment(summary, 'supir_tonase', 'skipped')
+        continue
+      }
+    }
+
     const { error } = await supabaseAdmin.from('supir_tonase').insert({
       id: uuidValue(row.id),
       data_harian_id: dataHarianId,
@@ -221,6 +258,22 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const namaPemanen = text(row.nama_pemanen)
     const jumlahTandan = intValue(row.jumlah_tandan)
     const tanggal = dateText(row.tanggal)
+
+    if (legacyMappedDataIds.has(parentSourceId)) {
+      const { data: legacyDuplicate } = await supabaseAdmin
+        .from('pemanen_tandan')
+        .select('id')
+        .eq('data_harian_id', dataHarianId)
+        .eq('nama_pemanen', namaPemanen)
+        .eq('jumlah_tandan', jumlahTandan)
+        .eq('tanggal', tanggal)
+        .maybeSingle()
+      if (legacyDuplicate?.id) {
+        increment(summary, 'pemanen_tandan', 'skipped')
+        continue
+      }
+    }
+
     const { error } = await supabaseAdmin.from('pemanen_tandan').insert({
       id: uuidValue(row.id),
       data_harian_id: dataHarianId,
@@ -249,6 +302,26 @@ async function restoreOfflineBackup(payload: BackupPayload, session: { id?: stri
     const kategori = text(row.kategori)
     const deskripsi = nullableText(row.deskripsi)
     const jumlah = numberValue(row.jumlah)
+
+    if (legacyMappedDataIds.has(parentSourceId)) {
+      let legacyDuplicateQuery = supabaseAdmin
+        .from('pengeluaran')
+        .select('id')
+        .eq('data_harian_id', dataHarianId)
+        .eq('tanggal', tanggal)
+        .eq('kategori', kategori)
+        .eq('jumlah', jumlah)
+
+      legacyDuplicateQuery = deskripsi === null
+        ? legacyDuplicateQuery.is('deskripsi', null)
+        : legacyDuplicateQuery.eq('deskripsi', deskripsi)
+
+      const { data: legacyDuplicate } = await legacyDuplicateQuery.maybeSingle()
+      if (legacyDuplicate?.id) {
+        increment(summary, 'pengeluaran', 'skipped')
+        continue
+      }
+    }
 
     const { error } = await supabaseAdmin.from('pengeluaran').insert({
       id: uuidValue(row.id),

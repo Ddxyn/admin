@@ -1,8 +1,11 @@
+import { getSession } from '@/lib/auth'
 import ExportClient from './ExportClient'
 
 export const dynamic = 'force-dynamic'
 
-export default function ExportPage() {
+export default async function ExportPage() {
+  const session = await getSession()
+
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
       <div className="mb-6">
@@ -11,7 +14,7 @@ export default function ExportPage() {
           Pilih periode lalu unduh data dalam format Excel atau JSON.
         </p>
       </div>
-      <ExportClient />
+      <ExportClient userRole={session!.role} />
     </div>
   )
 }

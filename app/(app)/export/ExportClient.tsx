@@ -1,6 +1,6 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
-import { Download, FileSpreadsheet, FileJson, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Download, FileSpreadsheet, FileJson, RefreshCw, Upload, DatabaseBackup } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatAngka, formatRupiah, formatTanggal, monthRange } from '@/lib/format'
 import type { DataHarian } from '@/types'
@@ -13,7 +13,7 @@ import {
 
 type TabPeriod = 'minggu' | 'bulan' | 'custom'
 
-export default function ExportClient() {
+export default function ExportClient({ userRole }: { userRole: string }) {
   const [tab, setTab] = useState<TabPeriod>('bulan')
   const [year, setYear] = useState(new Date().getFullYear())
   const [month, setMonth] = useState(new Date().getMonth() + 1)
@@ -23,6 +23,10 @@ export default function ExportClient() {
   const [dataList, setDataList] = useState<DataHarian[]>([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState<'excel' | 'json' | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
+
+  const canRestore = userRole === 'admin'
 
   const getRange = useCallback(() => {
     if (tab === 'minggu') {
@@ -89,6 +93,45 @@ export default function ExportClient() {
       toast.error(err instanceof Error ? err.message : 'Gagal export JSON')
     } finally {
       setExporting(null)
+    }
+  }
+
+  async function restoreOfflineBackup(file?: File) {
+    if (!file) return
+    if (!confirm(`Restore backup offline "${file.name}" ke database web? Data dengan tanggal yang sudah ada akan dilewati.`)) {
+      if (restoreInputRef.current) restoreInputRef.current.value = ''
+      return
+    }
+
+    setRestoring(true)
+    try {
+      const raw = await file.text()
+      const payload = JSON.parse(raw)
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Restore backup gagal')
+
+      const summary = data.summary ?? {}
+      const inserted = Object.values(summary).reduce((sum: number, row) => {
+        const item = row as { inserted?: number }
+        return sum + (item.inserted ?? 0)
+      }, 0)
+      const skipped = Object.values(summary).reduce((sum: number, row) => {
+        const item = row as { skipped?: number }
+        return sum + (item.skipped ?? 0)
+      }, 0)
+
+      toast.success(`Restore selesai: ${inserted} masuk, ${skipped} dilewati`)
+      await load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Restore backup gagal')
+    } finally {
+      setRestoring(false)
+      if (restoreInputRef.current) restoreInputRef.current.value = ''
     }
   }
 
@@ -183,6 +226,40 @@ export default function ExportClient() {
           </button>
         </div>
       </div>
+
+      {canRestore && (
+        <div className="card p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+            <div className="w-12 h-12 bg-[#FFD84D] border-2 border-black rounded-lg flex items-center justify-center shadow-[3px_3px_0_#111]">
+              <DatabaseBackup size={24} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-black uppercase">Restore Backup Offline</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Masukkan file JSON dari aplikasi offline di folder referensi. Sistem akan mengonversi ID offline ke UUID web dan menjaga relasi data.
+              </p>
+            </div>
+            <button
+              onClick={() => restoreInputRef.current?.click()}
+              disabled={restoring}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              <Upload size={16} />
+              {restoring ? 'Restore...' : 'Pilih JSON'}
+            </button>
+            <input
+              ref={restoreInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={event => restoreOfflineBackup(event.target.files?.[0])}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-4">
+            Catatan: jika tanggal sudah ada di web, data harian beserta detailnya akan dilewati untuk mencegah duplikasi.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

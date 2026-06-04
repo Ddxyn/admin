@@ -33,7 +33,7 @@ export async function getDataHarianList(params?: {
 
   let baseQuery = supabaseAdmin
     .from('data_harian')
-    .select('id, tanggal, harga_per_kg, catatan, created_by_nama, updated_by_nama, created_at, updated_at')
+    .select('id, tanggal, harga_per_kg, catatan, created_at')
     .order('tanggal', { ascending: false })
 
   if (params?.from) baseQuery = baseQuery.gte('tanggal', params.from)
@@ -88,6 +88,9 @@ export async function getDataHarianList(params?: {
     const totalPemasukan = totalTonase * Number(row.harga_per_kg)
     return {
       ...row,
+      created_by_nama: undefined,
+      updated_by_nama: undefined,
+      updated_at: row.created_at,
       total_tonase: totalTonase,
       total_pemasukan: totalPemasukan,
       total_pengeluaran: totalPengeluaran,
